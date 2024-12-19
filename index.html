@@ -442,6 +442,9 @@
                    const selectedChannel = $("#channel").val();
                    const selectedMediaType = $("#mediaTypeFilter").val();
 
+            
+// Added this line before the forEach:
+            data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
             data.forEach(function(message) {
                    const messageDate = new Date(message.timestamp);
 
