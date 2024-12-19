@@ -460,56 +460,89 @@
         flatpickr("#end_date", {});
 
         function loadMessages() {
-            $.post("/get_messages", {
-                start_date: $("#start_date").val(),
-                end_date: $("#end_date").val(),
-                channel: $("#channel").val(),
-                media_type: $("#mediaTypeFilter").val() 
-            }, function(data) {
-                $("#messages").empty();
-                data.forEach(function(message) {
-                    // Only display messages that match the selected media type
-                    if ($("#mediaTypeFilter").val() === "all" || $("#mediaTypeFilter").val() === message[5]) {
-                        var messageHtml = `
-                            <div class="message">
-                                <div class="message-header">
-                                    <div class="message-avatar">
-                                        <img src="/avatar/${getChannelName(message[4])}.jpg" 
-                                            alt="${getChannelName(message[4])}"
-                                            onerror="this.onerror=null; this.src='/avatar/default.jpg';">
-                                    </div>
-                                    <div class="message-info">
-                                        <div class="message-author">${getChannelName(message[4])}</div>
-                                        <div class="message-timestamp">${formatDate(message[2])}</div>
-                                    </div>
-                                </div>`;
-                        
-                        if (message[0]) {
-                            messageHtml += `<div class="message-content">${message[0]}</div>`;
-                        }
-                        if (message[1]) {
-                            if (message[5] === "image") {
-                                messageHtml += `
-                                    <div class="message-attachment">
-                                        <img src="${message[1]}" onclick="showFullImage(this.src)" 
-                                            loading="lazy" alt="Attached image">
-                                    </div>`;
-                            } else if (message[5] === "audio") {
-                                messageHtml += `
-                                    <div class="message-attachment">
-                                        <audio controls>
-                                            <source src="${message[1]}" type="audio/mpeg">
-                                            Your browser does not support the audio element.
-                                        </audio>
-                                    </div>`;
-                            } 
-                        }
-                        messageHtml += '</div>';
-                        $("#messages").append(messageHtml);
-                    }
-                });
-            });
-        }
+    const startDate = new Date($("#start_date").val());
+    const endDate = new Date($("#end_date").val());
+    const selectedChannel = $("#channel").val();
+    const selectedMediaType = $("#mediaTypeFilter").val();
+
+    // Get the range of months between startDate and endDate
+    const months = getMonthsInRange(startDate, endDate);
+    const channel = selectedChannel;
+    const messagePromises = [];
+
+    // Fetch all JSON files for the selected channel and months
+    months.forEach(month => {
+        const url = `json_by_channel_month/${channel}_${month}.json`;
+        messagePromises.push($.getJSON(url).catch(() => [])); // Catch errors if a file doesn't exist
+    });
+
+    // Process all loaded messages
+    Promise.all(messagePromises).then(results => {
+        const allMessages = results.flat(); // Combine messages from all files
+        const filteredMessages = allMessages.filter(message => {
+            const messageDate = new Date(message.timestamp);
+            return (
+                messageDate >= startDate &&
+                messageDate <= endDate &&
+                (selectedMediaType === "all" || selectedMediaType === message.media_type)
+            );
+        });
+
+        // Render messages
+        $("#messages").empty();
+        filteredMessages.forEach(message => {
+            var messageHtml = `
+                <div class="message">
+                    <div class="message-header">
+                        <div class="message-avatar">
+                            <img src="/avatar/${getChannelName(channel)}.jpg" 
+                                alt="${getChannelName(channel)}"
+                                onerror="this.onerror=null; this.src='/avatar/default.jpg';">
+                        </div>
+                        <div class="message-info">
+                            <div class="message-author">${getChannelName(channel)}</div>
+                            <div class="message-timestamp">${formatDate(message.timestamp)}</div>
+                        </div>
+                    </div>`;
+            
+            if (message.content) {
+                messageHtml += `<div class="message-content">${message.content}</div>`;
+            }
+            if (message.url) {
+                if (message.media_type === "image") {
+                    messageHtml += `
+                        <div class="message-attachment">
+                            <img src="${message.url}" onclick="showFullImage(this.src)" 
+                                loading="lazy" alt="Attached image">
+                        </div>`;
+                } else if (message.media_type === "audio") {
+                    messageHtml += `
+                        <div class="message-attachment">
+                            <audio controls>
+                                <source src="${message.url}" type="audio/mpeg">
+                                Your browser does not support the audio element.
+                            </audio>
+                        </div>`;
+                }
+            }
+            messageHtml += '</div>';
+            $("#messages").append(messageHtml);
+        });
+    });
+}
+
+// Helper to get all months between two dates in YYYY-MM format
+function getMonthsInRange(startDate, endDate) {
+    const months = [];
+    let currentDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+
+    while (currentDate <= endDate) {
+        const month = currentDate.toISOString().slice(0, 7); // Format: YYYY-MM
+        months.push(month);
+        currentDate.setMonth(currentDate.getMonth() + 1); // Move to next month
+    }
+    return months;
+}
   
         // Helper function to get initials from name
         function getInitials(name) {
@@ -521,76 +554,78 @@
                 .slice(0, 2);
         }
 
-        // Helper function to format date
-        function formatDate(dateStr) {
-            const date = new Date(dateStr);
-            return date.toLocaleString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-            });
-        }
+        // Get channel name based on channel ID
+function getChannelName(channelId) {
+    const channels = {
+        "1177035367942201494": "Greesel",
+        "1177035013162815598": "Indira",
+        "1177034551550283787": "Marsha",
+        "1177035322547249223": "Gracie",
+        "1177007541973172254": "Christy",
+        "1177015897873977474": "Fiony",
+        "1177016608451989574": "Ashel",
+        "1177005932127981629": "Chika",
+        "1177001460949598218": "Shani",
+        "1177007608830365736": "Zee",
+        "1177129890605191188": "Daisy",
+        "1177129969701363712": "Danella",
+        "1177022335795073165": "Raisha",
+        "1177117307466690611": "Cynthia",
+        "1177005953447645194": "Jessi",
+        "1177016028794990602": "Oniel",
+        "1208078091814043698": "Aralie",
+        "1208078154695180358": "Delynn",
+        "1208078327886258217": "Erine",
+        "1208079396183875594": "Fritzy",
+        "1208082554259906581": "Kimmy",
+        "1208078296231968850": "Lana",
+        "1208081737683570688": "Levi",
+        "1208081548965060608": "Lily",
+        "1208081645425401897": "Moreen",
+        "1208082171806613585": "Nachia",
+        "1208082406486183976": "Nala",
+        "1208081780964331623": "Nayla",
+        "1208082212084252792": "Oline",
+        "1208082254715166751": "Regie",
+        "1208082314714947614": "Ribka",
+        "1208081584050413678": "Trisha",
+        "1218234058870362306": "Extra"
+    };
+    return channels[channelId] || "Unknown Channel";
+}
 
-        function getChannelName(channelId) {
-            var channels = {
-                "1177035367942201494": "Greesel",
-                "1177035013162815598": "Indira",
-                "1177034551550283787": "Marsha",
-                "1177035322547249223": "Gracie",
-                "1177007541973172254": "Christy",
-                "1177015897873977474": "Fiony",
-                "1177016608451989574": "Ashel",
-                "1177005932127981629": "Chika",
-                "1177001460949598218": "Shani",
-                "1177007608830365736": "Zee",
-                "1177129890605191188": "Daisy",
-                "1177129969701363712": "Danella",
-                "1177022335795073165": "Raisha",
-                "1177117307466690611": "Cynthia",
-                "1177005953447645194": "Jessi",
-                "1177016028794990602": "Oniel",
-                
-                "1208078091814043698": "Aralie",
-                "1208078154695180358": "Delynn",
-                "1208078327886258217": "Erine",
-                "1208079396183875594": "Fritzy",
-                "1208082554259906581": "Kimmy",
-                "1208078296231968850": "Lana",
-                "1208081737683570688": "Levi",
-                "1208081548965060608": "Lily",
-                "1208081645425401897": "Moreen",
-                "1208082171806613585": "Nachia",
-                "1208082406486183976": "Nala",
-                "1208081780964331623": "Nayla",
-                "1208082212084252792": "Oline",
-                "1208082254715166751": "Regie",
-                "1208082314714947614": "Ribka",
-                "1208081584050413678": "Trisha",
+// Format date into a readable string
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+}
 
-                "1218234058870362306": "Extra"
-            };
-            return channels[channelId] || "Unknown Channel";
-        }
+// Display full image in modal
+function showFullImage(src) {
+    $("#fullImage").attr("src", src);
+    $("#fullImageModal").addClass("show").css("display", "flex");
+}
 
-        function showFullImage(src) {
-            $("#fullImage").attr("src", src);
-            $("#fullImageModal").addClass("show").css("display", "flex");
-        }
+$("#fullImageModal").click(function() {
+    $(this).removeClass("show").css("display", "none");
+});
 
-        $("#fullImageModal").click(function() {
-            $(this).removeClass("show").css("display", "none");
-        });
+// Reload messages on filter change
+$("#mediaTypeFilter").change(function() {
+    loadMessages();
+});
 
-        $("#mediaTypeFilter").change(function() {
-            loadMessages();
-        });
-
-        $(document).ready(function() {
-            loadMessages();
-        });
+// Load messages on page load
+$(document).ready(function() {
+    loadMessages();
+});
 
         function changeTheme(theme) {
             if (theme === 'default') {
